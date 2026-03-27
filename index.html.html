@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>March Wordsearch</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4f8;--card:#fff;--primary:#1a5c38;--primary-dk:#0f3d25;--primary-lt:#e6f4ec;
+  --accent:#c9a030;--accent-lt:#fdf5dc;--text:#1a1f2e;--muted:#5a6474;--border:#d4dae4;
+  --sel:rgba(26,92,56,.22);--rev:rgba(201,160,48,.30);--hover:rgba(26,92,56,.09);
+  --r:12px;--rs:6px;--sh:0 4px 24px rgba(0,0,0,.10)
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.5;min-height:100vh}
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(10,20,15,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:var(--card);border-radius:var(--r);box-shadow:0 12px 48px rgba(0,0,0,.25);padding:40px 36px;width:100%;max-width:400px;text-align:center}
+.modal-ic{font-size:48px;margin-bottom:12px}
+.modal h2{font-family:Georgia,serif;font-size:24px;color:var(--primary-dk);margin-bottom:8px}
+.modal p{color:var(--muted);font-size:14px;margin-bottom:24px}
+.modal input{width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:var(--rs);font-size:16px;font-family:inherit;color:var(--text);text-align:center;transition:border-color .14s;margin-bottom:16px}
+.modal input:focus{outline:none;border-color:var(--primary)}
+.modal-btn{width:100%;padding:13px;background:var(--primary);color:#fff;border:none;border-radius:var(--rs);font-size:16px;font-weight:700;cursor:pointer;transition:background .14s}
+.modal-btn:hover:not(:disabled){background:var(--primary-dk)}
+.modal-btn:disabled{opacity:.35;cursor:not-allowed}
+/* LAYOUT */
+.page{padding:20px 16px 48px;max-width:1020px;margin:0 auto}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.puzzle-title{font-family:Georgia,serif;font-size:22px;font-weight:bold;color:var(--primary-dk);display:flex;align-items:center;gap:8px}
+.puzzle-title::before{content:'🔍';font-size:18px}
+.meta-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.player-chip{background:var(--primary-lt);border:1.5px solid #b0d8c0;border-radius:100px;padding:4px 12px;font-size:13px;font-weight:600;color:var(--primary)}
+.timer{font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:var(--primary-dk);min-width:80px}
+.timer.done{color:var(--accent)}
+.ctrls{display:flex;gap:8px}
+.cbtn{padding:8px 15px;border-radius:var(--rs);font-size:13.5px;font-weight:600;cursor:pointer;border:2px solid transparent;transition:all .13s}
+.rev-btn{background:var(--accent-lt);border-color:#e8d070;color:#7a5800}
+.rev-btn:hover{background:#f8edb5}
+.rev-btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.lb-btn{background:var(--primary-lt);border-color:#b0d8c0;color:var(--primary)}
+.lb-btn:hover{background:#d0eed8}
+/* PROGRESS */
+.prog-area{margin-bottom:20px}
+.prog-meta{font-size:12.5px;color:var(--muted);margin-bottom:5px}
+.prog-track{height:5px;background:#e4e8ef;border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:var(--primary);border-radius:3px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+/* WIN */
+.win-banner{display:none;padding:12px 18px;background:linear-gradient(130deg,#d8f3e0,#fdf5dc);border:2px solid #a8ddb8;border-radius:var(--rs);font-weight:700;font-size:14px;color:var(--primary-dk);text-align:center;margin-bottom:18px}
+.win-banner.show{display:block}
+/* GRID */
+.body{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.grid-wrap{flex:0 0 auto}
+.grid{display:grid;gap:2px;user-select:none;cursor:default;touch-action:none}
+.cell{display:flex;align-items:center;justify-content:center;font-family:'Courier New',monospace;font-weight:700;border-radius:5px;background:#f5f7fb;border:1.5px solid #e0e5ee;transition:background .09s;cursor:pointer}
+.cell:hover:not(.found):not(.revealed){background:var(--hover)}
+.cell.sel{background:var(--sel)!important;border-color:rgba(26,92,56,.35)!important}
+.cell.revealed:not(.found){background:var(--rev);color:#7a5800;border-color:rgba(201,160,48,.45)}
+.cell.found{border-color:transparent!important}
+@keyframes pop{0%{transform:scale(.8)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+.cell.popping{animation:pop .25s ease forwards}
+/* WORDS */
+.words-area{flex:1 1 150px;min-width:140px}
+.words-hd{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:11px}
+.words-list{display:flex;flex-direction:column;gap:5px}
+.witem{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f5f7fb;border:1.5px solid var(--border);border-radius:var(--rs);font-family:'Courier New',monospace;font-size:13.5px;font-weight:600;letter-spacing:.06em;transition:all .2s}
+.witem.done{text-decoration:line-through;border-color:transparent;opacity:.88}
+.witem__ic{font-size:11px;flex-shrink:0;width:14px;text-align:center}
+/* LEADERBOARD */
+.lb-panel{display:none;position:fixed;inset:0;background:rgba(10,20,15,.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;z-index:100;padding:16px}
+.lb-panel.show{display:flex}
+.lb-card{background:var(--card);border-radius:var(--r);box-shadow:0 12px 48px rgba(0,0,0,.25);padding:32px;width:100%;max-width:460px;max-height:80vh;display:flex;flex-direction:column}
+.lb-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.lb-hd h3{font-family:Georgia,serif;font-size:20px;color:var(--primary-dk)}
+.lb-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1}
+.lb-close:hover{color:var(--text)}
+.lb-body{overflow-y:auto;flex:1}
+.lb-loading{color:var(--muted);font-size:14px;text-align:center;padding:24px 0;display:flex;align-items:center;justify-content:center;gap:8px}
+.lb-empty{color:var(--muted);font-size:14px;text-align:center;padding:24px 0}
+.lb-error{color:#c0392b;font-size:13px;text-align:center;padding:16px;background:#fef2f2;border-radius:var(--rs)}
+.lb-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--rs);margin-bottom:6px;background:#f5f7fb;border:1.5px solid var(--border)}
+.lb-row.me{background:var(--primary-lt);border-color:#b0d8c0}
+.lb-rank{font-size:13px;font-weight:700;color:var(--muted);width:26px;flex-shrink:0;text-align:center}
+.lb-name{flex:1;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-time{font-family:'Courier New',monospace;font-size:13.5px;font-weight:700;color:var(--primary)}
+.lb-meta{font-size:11px;color:var(--muted);margin-left:4px}
+@media(max-width:600px){.body{flex-direction:column}.words-area{width:100%}}
+</style>
+</head>
+<body>
+
+<!-- NAME MODAL -->
+<div class="modal-bg" id="nameModal">
+  <div class="modal">
+    <div class="modal-ic">🔍</div>
+    <h2>March Wordsearch</h2>
+    <p>Enter your name to start the puzzle — your time will be saved to the team leaderboard!</p>
+    <input type="text" id="nameIn" placeholder="Your name…" maxlength="40" autocomplete="off">
+    <button class="modal-btn" id="startBtn" disabled>Start Puzzle →</button>
+  </div>
+</div>
+
+<!-- LEADERBOARD PANEL -->
+<div class="lb-panel" id="lbPanel">
+  <div class="lb-card">
+    <div class="lb-hd">
+      <h3>🏆 Leaderboard</h3>
+      <button class="lb-close" id="lbClose">&times;</button>
+    </div>
+    <div class="lb-body" id="lbBody">
+      <div class="lb-loading">Loading scores…</div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME PAGE -->
+<div class="page">
+  <div class="top">
+    <h2 class="puzzle-title">March Wordsearch</h2>
+    <div class="meta-row">
+      <span class="player-chip" id="playerChip">👤 —</span>
+      <span class="timer" id="timer">0:00</span>
+      <div class="ctrls">
+        <button class="cbtn rev-btn" id="rvb">👁 Reveal</button>
+        <button class="cbtn lb-btn" id="lbb">🏆 Scores</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="prog-area">
+    <div id="pt" class="prog-meta">0 of 15 found</div>
+    <div class="prog-track"><div id="pf" class="prog-fill" style="width:0%"></div></div>
+  </div>
+
+  <div class="win-banner" id="wb">🎉 Brilliant! You found every word!</div>
+
+  <div class="body">
+    <div class="grid-wrap"><div id="G" class="grid"></div></div>
+    <div class="words-area">
+      <div class="words-hd">Words to Find</div>
+      <div id="WL" class="words-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PD={"title":"March Wordsearch","size":15,"grid":[["T","O","A","Q","Q","P","I","R","E","Z","B","H","F","G","H"],["Y","S","S","T","C","I","D","R","E","V","F","Q","G","U","A"],["I","C","H","N","K","W","S","T","J","S","L","M","H","T","L"],["S","L","E","I","V","A","V","J","R","B","M","V","E","Z","D"],["S","E","R","S","K","E","U","J","G","I","G","C","A","M","B"],["E","R","I","S","F","S","C","J","D","O","B","L","R","E","L"],["N","K","F","A","T","W","W","T","V","W","Q","U","I","L","D"],["T","H","F","I","L","H","X","E","R","C","U","L","N","L","K"],["I","L","C","G","B","A","R","F","A","U","E","G","G","A","P"],["W","E","X","H","U","N","A","S","B","I","O","B","R","U","L"],["N","G","T","M","A","P","E","R","U","D","E","C","O","R","P"],["H","A","N","N","P","W","W","B","B","Z","P","Y","N","B","M"],["N","L","C","E","O","L","V","W","R","P","Q","D","Q","N","D"],["L","E","A","R","E","C","N","E","D","I","V","E","A","M","M"],["X","L","K","R","J","U","D","I","C","I","A","R","Y","Y","C"]],"places":[{"word":"GOVERNANCE","row":4,"col":10,"dr":1,"dc":-1,"ci":0},{"word":"JUDICIARY","row":14,"col":4,"dr":0,"dc":1,"ci":1},{"word":"PROCEDURE","row":10,"col":14,"dr":0,"dc":-1,"ci":2},{"word":"TRIBUNAL","row":2,"col":7,"dr":1,"dc":1,"ci":3},{"word":"EVIDENCE","row":13,"col":11,"dr":0,"dc":-1,"ci":4},{"word":"CASEWORK","row":7,"col":9,"dr":1,"dc":-1,"ci":5},{"word":"JUSTICE","row":3,"col":7,"dr":1,"dc":-1,"ci":6},{"word":"SHERIFF","row":1,"col":2,"dr":1,"dc":0,"ci":7},{"word":"HEARING","row":2,"col":12,"dr":1,"dc":0,"ci":8},{"word":"VERDICT","row":1,"col":9,"dr":0,"dc":-1,"ci":9},{"word":"WITNESS","row":9,"col":0,"dr":-1,"dc":0,"ci":0},{"word":"APPEAL","row":9,"col":6,"dr":1,"dc":-1,"ci":1},{"word":"COURT","row":10,"col":11,"dr":-1,"dc":-1,"ci":2},{"word":"CLERK","row":2,"col":1,"dr":1,"dc":0,"ci":3},{"word":"LEGAL","row":8,"col":1,"dr":1,"dc":0,"ci":4}],"spUrl":"https://scotcourtstribunals.sharepoint.com/sites/dept-CDiCommsSite","spList":"WordSearchScores"};
+const SP_URL=PD.spUrl;
+const SP_LIST=PD.spList;
+// PuzzleKey: stable identifier for this puzzle so multiple puzzles can share one list
+const PUZZLE_KEY=btoa(unescape(encodeURIComponent(PD.title))).replace(/[^a-zA-Z0-9]/g,'').slice(0,40);
+
+const COLORS=[
+  {bg:'#bbf7d0',tx:'#14532d',bd:'#86efac'},{bg:'#bfdbfe',tx:'#1e3a8a',bd:'#93c5fd'},
+  {bg:'#fde68a',tx:'#78350f',bd:'#fcd34d'},{bg:'#fecaca',tx:'#7f1d1d',bd:'#fca5a5'},
+  {bg:'#e9d5ff',tx:'#4c1d95',bd:'#d8b4fe'},{bg:'#fed7aa',tx:'#7c2d12',bd:'#fdba74'},
+  {bg:'#a5f3fc',tx:'#164e63',bd:'#67e8f9'},{bg:'#fbcfe8',tx:'#831843',bd:'#f9a8d4'},
+  {bg:'#d9f99d',tx:'#365314',bd:'#bef264'},{bg:'#fef3c7',tx:'#92400e',bd:'#fde68a'}
+];
+
+let playerName='',found=new Map(),revealed=false;
+let timerSec=0,timerInt=null,gameOver=false,usedReveal=false;
+let dragging=false,selStart=null,selCells=[];
+let lastSavedTime=null;
+
+// ── NAME MODAL ──────────────────────────────────────
+const nameIn=document.getElementById('nameIn');
+const startBtn=document.getElementById('startBtn');
+function checkName(){startBtn.disabled=!nameIn.value.trim()}
+nameIn.addEventListener('input',checkName);
+nameIn.addEventListener('keyup',checkName);
+nameIn.addEventListener('change',checkName);
+nameIn.addEventListener('paste',()=>setTimeout(checkName,10));
+nameIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&nameIn.value.trim())startGame()});
+startBtn.addEventListener('click',startGame);
+
+function startGame(){
+  playerName=nameIn.value.trim();
+  document.getElementById('playerChip').textContent='👤 '+playerName;
+  document.getElementById('nameModal').style.display='none';
+  renderGrid(); renderWords(); startTimer();
+}
+
+// ── TIMER ───────────────────────────────────────────
+function startTimer(){
+  timerInt=setInterval(()=>{
+    if(gameOver)return;
+    timerSec++;
+    document.getElementById('timer').textContent=fmtTime(timerSec);
+  },1000);
+}
+function stopTimer(){clearInterval(timerInt);document.getElementById('timer').classList.add('done')}
+function fmtTime(s){const m=Math.floor(s/60);return m+':'+(s%60<10?'0':'')+(s%60)}
+
+// ── GRID RENDER ─────────────────────────────────────
+function cs(){const n=PD.size;return n<=10?42:n<=12?38:n<=15?32:26}
+function renderGrid(){
+  const G=document.getElementById('G'),s=cs();
+  G.style.gridTemplateColumns=`repeat(${PD.size},${s}px)`;
+  for(let r=0;r<PD.size;r++){
+    for(let c=0;c<PD.size;c++){
+      const el=document.createElement('div');
+      el.className='cell';el.dataset.r=r;el.dataset.c=c;
+      el.textContent=PD.grid[r][c];
+      el.style.width=s+'px';el.style.height=s+'px';
+      el.style.fontSize=Math.round(s*.46)+'px';
+      G.appendChild(el);
+    }
+  }
+  G.addEventListener('mousedown',mDown);
+  document.addEventListener('mousemove',mMove);
+  document.addEventListener('mouseup',mUp);
+  G.addEventListener('touchstart',tStart,{passive:false});
+  document.addEventListener('touchmove',tMove,{passive:false});
+  document.addEventListener('touchend',tEnd);
+}
+function renderWords(){
+  const WL=document.getElementById('WL');WL.innerHTML='';
+  PD.places.forEach(({word,ci})=>{
+    const done=found.has(word);
+    const el=document.createElement('div');el.className='witem'+(done?' done':'');
+    if(done){const col=COLORS[ci];el.style.backgroundColor=col.bg;el.style.color=col.tx;el.style.borderColor=col.bd}
+    el.innerHTML=`<span class="witem__ic">${done?'✓':'◦'}</span><span>${word}</span>`;
+    WL.appendChild(el);
+  });
+}
+function updateProg(){
+  const f=found.size,t=PD.places.length;
+  document.getElementById('pt').textContent=`${f} of ${t} found`;
+  document.getElementById('pf').style.width=(t>0?f/t*100:0)+'%';
+  if(f===t&&t>0)finishGame();
+}
+function finishGame(){
+  if(gameOver)return;gameOver=true;stopTimer();
+  document.getElementById('wb').classList.add('show');
+  saveScoreToSharePoint().then(()=>openLeaderboard());
+}
+
+// ── SELECTION ───────────────────────────────────────
+function cellAt(x,y){const el=document.elementFromPoint(x,y);if(!el||!el.classList.contains('cell'))return null;return{row:+el.dataset.r,col:+el.dataset.c}}
+function lineCells(a,b){
+  const dr=b.row-a.row,dc=b.col-a.col;
+  if(!dr&&!dc)return[a];
+  const ar=Math.abs(dr),ac=Math.abs(dc);
+  if(dr&&dc&&ar!==ac)return null;
+  const len=Math.max(ar,ac),sr=dr?dr/ar:0,sc=dc?dc/ac:0,out=[];
+  for(let i=0;i<=len;i++)out.push({row:a.row+sr*i,col:a.col+sc*i});
+  return out;
+}
+function qCell(r,c){return document.querySelector(`#G .cell[data-r="${r}"][data-c="${c}"]`)}
+function showSel(){
+  document.querySelectorAll('#G .cell.sel').forEach(el=>el.classList.remove('sel'));
+  selCells.forEach(({row,col})=>{const el=qCell(row,col);if(el)el.classList.add('sel')});
+}
+function finalize(){
+  document.querySelectorAll('#G .cell.sel').forEach(el=>el.classList.remove('sel'));
+  if(selCells.length<2){selCells=[];return}
+  const word=selCells.map(({row,col})=>PD.grid[row][col]).join('');
+  const rev=[...word].reverse().join('');
+  for(const p of PD.places){
+    if(found.has(p.word))continue;
+    if(p.word===word||p.word===rev){markFound(p);break}
+  }
+  selCells=[];
+}
+function markFound(p){
+  found.set(p.word,p.ci);
+  const col=COLORS[p.ci];
+  for(let i=0;i<p.word.length;i++){
+    const el=qCell(p.row+p.dr*i,p.col+p.dc*i);
+    if(!el)continue;
+    el.classList.add('found','popping');el.classList.remove('revealed','sel');
+    el.style.backgroundColor=col.bg;el.style.color=col.tx;el.style.borderColor=col.bd;
+    setTimeout(()=>el.classList.remove('popping'),300);
+  }
+  renderWords();updateProg();
+}
+function mDown(e){const c=cellAt(e.clientX,e.clientY);if(!c||gameOver)return;e.preventDefault();dragging=true;selStart=c;selCells=[c];showSel()}
+function mMove(e){if(!dragging)return;const c=cellAt(e.clientX,e.clientY);if(!c)return;const lc=lineCells(selStart,c);if(lc){selCells=lc;showSel()}}
+function mUp(){if(!dragging)return;dragging=false;finalize()}
+function tStart(e){e.preventDefault();const t=e.touches[0];const c=cellAt(t.clientX,t.clientY);if(!c||gameOver)return;dragging=true;selStart=c;selCells=[c];showSel()}
+function tMove(e){e.preventDefault();if(!dragging)return;const t=e.touches[0];const c=cellAt(t.clientX,t.clientY);if(!c)return;const lc=lineCells(selStart,c);if(lc){selCells=lc;showSel()}}
+function tEnd(){if(!dragging)return;dragging=false;finalize()}
+
+// ── REVEAL ──────────────────────────────────────────
+document.getElementById('rvb').addEventListener('click',()=>{
+  revealed=!revealed;usedReveal=true;
+  PD.places.forEach(p=>{
+    if(found.has(p.word))return;
+    for(let i=0;i<p.word.length;i++){
+      const el=qCell(p.row+p.dr*i,p.col+p.dc*i);
+      if(!el||el.classList.contains('found'))return;
+      el.classList.toggle('revealed',revealed);
+    }
+  });
+  const b=document.getElementById('rvb');
+  b.textContent=revealed?'🙈 Hide':'👁 Reveal';b.classList.toggle('on',revealed);
+});
+
+// ── SHAREPOINT REST API ──────────────────────────────
+async function getDigest(){
+  const r=await fetch(`${SP_URL}/_api/contextinfo`,{
+    method:'POST',
+    headers:{Accept:'application/json;odata=nometadata','Content-Length':'0'}
+  });
+  if(!r.ok)throw new Error('Could not get SharePoint context (status '+r.status+')');
+  const d=await r.json();
+  return d.FormDigestValue;
+}
+
+async function saveScoreToSharePoint(){
+  if(!playerName)return;
+  try{
+    const digest=await getDigest();
+    const body=JSON.stringify({
+      Title:playerName,
+      TimeSeconds:timerSec,
+      UsedReveal:usedReveal,
+      PuzzleKey:PUZZLE_KEY
+    });
+    const r=await fetch(
+      `${SP_URL}/_api/web/lists/getbytitle('${encodeURIComponent(SP_LIST)}')/items`,
+      {
+        method:'POST',
+        headers:{
+          'Accept':'application/json;odata=nometadata',
+          'Content-Type':'application/json;odata=nometadata',
+          'X-RequestDigest':digest
+        },
+        body
+      }
+    );
+    if(!r.ok){
+      const txt=await r.text();
+      console.error('SharePoint save error:',txt);
+    } else {
+      lastSavedTime=timerSec;
+    }
+  }catch(e){
+    console.error('Error saving score:',e);
+  }
+}
+
+async function fetchScores(){
+  const url=`${SP_URL}/_api/web/lists/getbytitle('${encodeURIComponent(SP_LIST)}')/items`+
+    `?\$filter=PuzzleKey eq '${PUZZLE_KEY}'`+
+    `&\$select=Title,TimeSeconds,UsedReveal,Created`+
+    `&\$orderby=UsedReveal asc,TimeSeconds asc`+
+    `&\$top=50`;
+  const r=await fetch(url,{headers:{Accept:'application/json;odata=nometadata'}});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  return d.value||[];
+}
+
+// ── LEADERBOARD UI ───────────────────────────────────
+async function openLeaderboard(){
+  document.getElementById('lbPanel').classList.add('show');
+  document.getElementById('lbBody').innerHTML='<div class="lb-loading">⏳ Loading scores…</div>';
+  try{
+    const scores=await fetchScores();
+    renderLeaderboard(scores);
+  }catch(e){
+    document.getElementById('lbBody').innerHTML=
+      `<div class="lb-error">⚠️ Could not load scores.<br><small>${e.message}</small><br><br>Make sure the puzzle file is served from the same SharePoint site, and the list name is correct.</div>`;
+  }
+}
+
+function renderLeaderboard(scores){
+  const body=document.getElementById('lbBody');
+  if(!scores.length){body.innerHTML='<p class="lb-empty">No scores yet — be the first!</p>';return}
+  const medals=['🥇','🥈','🥉'];
+  body.innerHTML=scores.map((s,i)=>{
+    const isMe=s.Title===playerName&&s.TimeSeconds===lastSavedTime;
+    const medal=medals[i]||String(i+1);
+    const date=new Date(s.Created).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    return `<div class="lb-row${isMe?' me':''}">
+      <span class="lb-rank">${medal}</span>
+      <span class="lb-name">${s.Title.replace(/</g,'&lt;')}${s.UsedReveal?' 👁':''}</span>
+      <span class="lb-time">${fmtTime(s.TimeSeconds)}</span>
+      <span class="lb-meta">${date}</span>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('lbb').addEventListener('click',openLeaderboard);
+document.getElementById('lbClose').addEventListener('click',()=>document.getElementById('lbPanel').classList.remove('show'));
+document.getElementById('lbPanel').addEventListener('click',e=>{if(e.target===document.getElementById('lbPanel'))document.getElementById('lbPanel').classList.remove('show')});
+</script>
+</body>
+</html>
